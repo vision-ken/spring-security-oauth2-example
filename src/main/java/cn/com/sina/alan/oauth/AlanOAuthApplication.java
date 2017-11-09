@@ -11,6 +11,8 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.E
 import java.util.Arrays;
 
 /**
+ * http://blog.spring-cloud.io/blog/oauth-authorize.html
+ * 
  * Created by wanghongfei(hongfei7@staff.sina.com.cn) on 9/9/16.
  */
 @SpringBootApplication

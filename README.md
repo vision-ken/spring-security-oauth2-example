@@ -1,137 +1,193 @@
 # Spring Security OAuth2 Demo
+
+Spring Cloud Security OAuth2 是 Spring 对 OAuth2 的开源实现，优点是能与Spring Cloud技术栈无缝集成，如果全部使用默认配置，开发者只需要添加注解就能完成 OAuth2 授权服务的搭建。
+
+## 1. 数据初始化
+
+### 1.1 创建mysql数据库
 项目使用的是MySql存储, 需要先创建以下表结构:
-```
-
-CREATE SCHEMA IF NOT EXISTS `alan-oauth` DEFAULT CHARACTER SET utf8 ;
-USE `alan-oauth` ;
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`clientdetails`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`clientdetails` (
-  `appId` VARCHAR(128) NOT NULL,
-  `resourceIds` VARCHAR(256) NULL DEFAULT NULL,
-  `appSecret` VARCHAR(256) NULL DEFAULT NULL,
-  `scope` VARCHAR(256) NULL DEFAULT NULL,
-  `grantTypes` VARCHAR(256) NULL DEFAULT NULL,
-  `redirectUrl` VARCHAR(256) NULL DEFAULT NULL,
-  `authorities` VARCHAR(256) NULL DEFAULT NULL,
-  `access_token_validity` INT(11) NULL DEFAULT NULL,
-  `refresh_token_validity` INT(11) NULL DEFAULT NULL,
-  `additionalInformation` VARCHAR(4096) NULL DEFAULT NULL,
-  `autoApproveScopes` VARCHAR(256) NULL DEFAULT NULL,
-  PRIMARY KEY (`appId`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_access_token`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_access_token` (
-  `token_id` VARCHAR(256) NULL DEFAULT NULL,
-  `token` BLOB NULL DEFAULT NULL,
-  `authentication_id` VARCHAR(128) NOT NULL,
-  `user_name` VARCHAR(256) NULL DEFAULT NULL,
-  `client_id` VARCHAR(256) NULL DEFAULT NULL,
-  `authentication` BLOB NULL DEFAULT NULL,
-  `refresh_token` VARCHAR(256) NULL DEFAULT NULL,
-  PRIMARY KEY (`authentication_id`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_approvals`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_approvals` (
-  `userId` VARCHAR(256) NULL DEFAULT NULL,
-  `clientId` VARCHAR(256) NULL DEFAULT NULL,
-  `scope` VARCHAR(256) NULL DEFAULT NULL,
-  `status` VARCHAR(10) NULL DEFAULT NULL,
-  `expiresAt` DATETIME NULL DEFAULT NULL,
-  `lastModifiedAt` DATETIME NULL DEFAULT NULL)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_client_details`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_client_details` (
-  `client_id` VARCHAR(128) NOT NULL,
-  `resource_ids` VARCHAR(256) NULL DEFAULT NULL,
-  `client_secret` VARCHAR(256) NULL DEFAULT NULL,
-  `scope` VARCHAR(256) NULL DEFAULT NULL,
-  `authorized_grant_types` VARCHAR(256) NULL DEFAULT NULL,
-  `web_server_redirect_uri` VARCHAR(256) NULL DEFAULT NULL,
-  `authorities` VARCHAR(256) NULL DEFAULT NULL,
-  `access_token_validity` INT(11) NULL DEFAULT NULL,
-  `refresh_token_validity` INT(11) NULL DEFAULT NULL,
-  `additional_information` VARCHAR(4096) NULL DEFAULT NULL,
-  `autoapprove` VARCHAR(256) NULL DEFAULT NULL,
-  PRIMARY KEY (`client_id`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_client_token`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_client_token` (
-  `token_id` VARCHAR(256) NULL DEFAULT NULL,
-  `token` BLOB NULL DEFAULT NULL,
-  `authentication_id` VARCHAR(128) NOT NULL,
-  `user_name` VARCHAR(256) NULL DEFAULT NULL,
-  `client_id` VARCHAR(256) NULL DEFAULT NULL,
-  PRIMARY KEY (`authentication_id`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_code`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_code` (
-  `code` VARCHAR(256) NULL DEFAULT NULL,
-  `authentication` BLOB NULL DEFAULT NULL)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
-
-
--- -----------------------------------------------------
--- Table `alan-oauth`.`oauth_refresh_token`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `alan-oauth`.`oauth_refresh_token` (
-  `token_id` VARCHAR(256) NULL DEFAULT NULL,
-  `token` BLOB NULL DEFAULT NULL,
-  `authentication` BLOB NULL DEFAULT NULL)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8;
 
 ```
-然后在`oauth_client_details`表中插入记录:
+执行工程根目录的 `db.sql` 
 ```
-# client_id, resource_ids, client_secret, scope, authorized_grant_types, web_server_redirect_uri, authorities, access_token_validity, refresh_token_validity, additional_information, autoapprove
-'client', NULL, 'secret', 'app', 'authorization_code', 'http://www.baidu.com', NULL, NULL, NULL, NULL, NULL
+
+### 1.2 注册客户端
+
+假设我们需要注册两个客户端，其中：
+
+1. `client1` 客户端，支持 `authorization_code` 授权模式
+2. `client2` 客户端，支持 `password` 授权模式
+
+我们需要在`oauth_client_details`表中加入这两个客户端:
+
 ```
-这时就可以访问授权页面了:
+INSERT INTO `oauth_client_details` 
+VALUES
+('client1',NULL,'secret','app,web','authorization_code,refresh_token','http://www.baidu.com',NULL,NULL,NULL,NULL,NULL),
+('client2',NULL,'secret','app,web','password,refresh_token','http://www.baidu.com',NULL,NULL,NULL,NULL,NULL),
+('client3',NULL,'secret','app,web','password,authorization_code,refresh_token','http://www.baidu.com',NULL,NULL,NULL,NULL,NULL);
 ```
-localhost:8080/oauth/authorize?client_id=client&response_type=code&redirect_uri=http://www.baidu.com
-```
-访问时Spring让你登陆,随便输入一个用户名密码即可。
-**注意, 如果每次登陆时输入的用户名不一样,那么Spring Security会认为是不同的用户,因此访问/token/authorize会再次显示授权页面。如果用户名一致, 则只需要授权一次**
+
+> 客户端的jdbc服务见：org.springframework.security.oauth2.provider.client.JdbcClientDetailsService.java
 
 数据库连接信息在`application.properties`中配置。
 
+## 2. 测试
 
-Spring Cloud Security OAuth2 是 Spring 对 OAuth2 的开源实现，优点是能与Spring Cloud技术栈无缝集成，如果全部使用默认配置，开发者只需要添加注解就能完成 OAuth2 授权服务的搭建。
+启动 spring boot 应用 `AlanOAuthApplication`
+
+### 2.1 测试 `authorization_code` 授权模式
+
+#### 1. 在浏览器中访问授权页面:
+
+```
+localhost:8080/oauth/authorize?client_id=client1&response_type=code&redirect_uri=http://www.baidu.com
+```
+
+![](https://xm-lab.github.io/s/note/spring-oauth2-001.png)
+出现登录界面后，随便输入一个用户名密码即可。
+
+> 因为 AlanSsoAuthProvider.java 的 authenticate() 方法没有校验用户名密码就直接返回了一个 `UsernamePasswordAuthenticationToken`
+
+**注意, 如果每次登陆时输入的用户名不一样,那么Spring Security会认为是不同的用户,因此访问/token/authorize会再次显示授权页面。如果用户名一致, 则只需要授权一次**
+
+#### 2. 用户选择是否授权
+
+![](https://xm-lab.github.io/s/note/spring-oauth2-002.png)
+
+对每一个scope选择授权（Approve）或拒绝（Deny），并点击授权（Authorize）按钮之后，浏览器就会重定向到百度，并带上code参数：
+
+![](https://xm-lab.github.io/s/note/spring-oauth2-003.png)
+
+#### 3. 客户端的服务器根据code获取token
+拿到`code`以后，就可以通过
+
+```
+POST/GET http://client:secret@localhost:8080/oauth/token
+```
+的方式来获取`access_token`了：
+
+```
+$ curl -X POST -H "Content-Type: application/x-www-form-urlencoded" -d 'grant_type=authorization_code&code=XQOm6c&redirect_uri=http://www.baidu.com' "http://client1:secret@localhost:8080/oauth/token"
+```
+
+> 注意，URL中的client为上文中通过`ClientDetailsServiceConfigurer`类指定的clientId。由于 `authorization_code` 的授权方式不需要 `client_secret`, 因此secret可以填写任意值
+
+返回如下：
+
+```json
+{
+	"access_token":"71f75dbd-aacf-4351-915a-6711f680a756",
+	"token_type":"bearer",
+	"refresh_token":"1579398c-aca7-48e5-b1cc-5ca0723071b3",
+	"expires_in":2591999,
+	"scope":"app web"
+}
+```
+
+#### 5. 刷新token
+```
+curl -u client1:secret http://localhost:8080/oauth/token -d grant_type=refresh_token -d refresh_token=b76d53cf-0501-42c6-8559-447aa59e332c
+
+```
+
+返回如下：
+
+```json
+{
+	"access_token":"830f5a26-c8a3-4601-b3f5-d760312a4180",
+	"token_type":"bearer",
+	"refresh_token":"65fb67e7-854b-4e11-b421-3bbe20962d37",
+	"expires_in":2591999,
+	"scope":"app web"
+}
+```
+
+#### 6. 自动授权
+
+
+如果将 `client1` 的 `autoapprove` 置为 `true`:
+
+```
+update oauth_client_details set autoapprove='true' where client_id='client1';
+```
+
+则会自动跳过第2步（2. 用户选择是否授权）授权界面，直接到第3步。第2步的所有scope都会被自动授权。
+
+
+### 2.2 测试 `password` 授权模式
+
+#### 1. 客户端的服务器根据client id和secret获取token
+```
+$ curl -u client2:secret http://localhost:8080/oauth/token -d grant_type=password -d username=username1 -d password=password1 -d scope=app+web
+```
+
+> 注意：request中多个scope之间用空格分隔（url-encoded编码的情况用+号分隔）
+
+返回如下：
+
+```json
+{
+	"access_token":"38985657-41c3-4658-b478-787e89323f13",
+	"token_type":"bearer",
+	"refresh_token":"2eff56fa-8067-4628-9e04-3a536a6ec9b2",
+	"expires_in":2591999,
+	"scope":"app,web"
+}
+```
+
+#### 2. 刷新token
+```
+curl -u client2:secret http://localhost:8080/oauth/token -d grant_type=refresh_token -d refresh_token=2eff56fa-8067-4628-9e04-3a536a6ec9b2
+```
+
+返回如下：
+
+```json
+{
+	"access_token":"4208fdf5-6e4d-4197-81b1-af252d63cf74",
+	"token_type":"bearer",
+	"refresh_token":"2eff56fa-8067-4628-9e04-3a536a6ec9b2",
+	"expires_in":2591999,
+	"scope":"app,web"}
+```
+
+### 2.3 测试客户端3，同时支持 `authorization_code`或`password` 授权模式
+
+
+#### 1、`authorization_code` 模式
+
+```
+localhost:8080/oauth/authorize?client_id=client3&response_type=code&redirect_uri=http://www.baidu.com
+https://www.baidu.com/?code=ATN127
+
+curl -X POST -H "Cache-Control: no-cache" -H "Content-Type: application/x-www-form-urlencoded" -d 'grant_type=authorization_code&code=ATN127&redirect_uri=http://www.baidu.com' "http://client3:secret@localhost:8080/oauth/token"
+```
+
+返回：
+
+```json
+{"access_token":"7f006e6c-534b-4280-a16a-3d59d5fd2b12","token_type":"bearer","refresh_token":"7161f3a2-7bdc-4588-b6ad-d89a68b5f382","expires_in":2591999,"scope":"app web"}
+```
+
+#### 2、`password` 模式
+
+```
+curl -u client3:secret http://localhost:8080/oauth/token -d grant_type=password -d username=username1 -d password=password1 -d scope=app+web
+```
+
+返回：
+
+```json
+{"access_token":"34270b34-c875-4267-ad77-ca9ee74fb697","token_type":"bearer","refresh_token":"4cfd6195-1787-4b68-83ac-c1278475b7eb","expires_in":2591995,"scope":"app web"}
+```
 
 
 # 博文
 ## 1. 添加依赖
 授权服务是基于Spring Security的，因此需要在项目中引入两个依赖：
-```
+
+```xml
  <dependency>
         <groupId>org.springframework.cloud</groupId>
         <artifactId>spring-cloud-starter-security</artifactId>
@@ -142,10 +198,12 @@ Spring Cloud Security OAuth2 是 Spring 对 OAuth2 的开源实现，优点是�
          <artifactId>spring-cloud-starter-oauth2</artifactId>
  </dependency>
 ```
+
 前者为 Security，后者为Security的OAuth2扩展。
 
 ## 2. 添加注解和配置
 在启动类中添加`@EnableAuthorizationServer`注解：
+
 ```
 @SpringBootApplication
 @EnableAuthorizationServer
@@ -156,19 +214,21 @@ public class AlanOAuthApplication {
 }
 ```
 完成这些我们的授权服务最基本的骨架就已经搭建完成了。但是要想跑通整个流程，我们必须分配 `client_id`, `client_secret`才行。Spring Security OAuth2的配置方法是编写`@Configuration`类继承`AuthorizationServerConfigurerAdapter`，然后重写`void configure(ClientDetailsServiceConfigurer clients)`方法，如：
+
 ```java
 @Override
-    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-        clients.inMemory() // 使用in-memory存储
-                .withClient("client") // client_id
-                .secret("secret") // client_secret
-                .authorizedGrantTypes("authorization_code") // 该client允许的授权类型
-                .scopes("app"); // 允许的授权范围
-    }
+public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+    clients.inMemory() // 使用in-memory存储
+            .withClient("client") // client_id
+            .secret("secret") // client_secret
+            .authorizedGrantTypes("authorization_code") // 该client允许的授权类型
+            .scopes("app"); // 允许的授权范围
+}
 ```
 
 ## 3. 授权流程
 访问授权页面：
+
 ```
 localhost:8080/oauth/authorize?client_id=client&response_type=code&redirect_uri=http://www.baidu.com
 ```
@@ -181,16 +241,19 @@ localhost:8080/oauth/authorize?client_id=client&response_type=code&redirect_uri=
 ![这里写图片描述](http://img.blog.csdn.net/20160914172412190)
 
 拿到`code`以后，就可以调用
+
 ```
 POST/GET http://client:secret@localhost:8080/oauth/token
 ```
 来换取`access_token`了：
+
 ```
 curl -X POST -H "Content-Type: application/x-www-form-urlencoded" -d 'grant_type=authorization_code&code=Li4NZo&redirect_uri=http://www.baidu.com' "http://client:secret@localhost:8080/oauth/token"
 ```
 > 注意，URL中的client为上文中通过`ClientDetailsServiceConfigurer`类指定的clientId。由于authorization_code的授权方式不需要 client_secret, 因此secret可以填写任意值
 
 返回如下：
+
 ```json
 {
   "access_token": "32a1ca28-bc7a-4147-88a1-c95abcc30556", // 令牌
@@ -215,7 +278,8 @@ Spring Cloud Security OAuth2通过`DefaultTokenServices`类来完成token生成�
 
 ### 4.3 配置
 数据库建好后，下一步就是配置框架使用JDBC实现。方法还是编写`@Configuration`类继承`AuthorizationServerConfigurerAdapter`：
-```
+
+```java
     @Autowired
     private AuthenticationManager authenticationManager;
 
