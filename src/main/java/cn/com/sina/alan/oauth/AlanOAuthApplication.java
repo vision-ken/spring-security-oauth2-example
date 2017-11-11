@@ -23,7 +23,7 @@ public class AlanOAuthApplication {
     }
 
 
-    @Autowired
+    @Autowired // 自动绑定自定义的 AlanSsoAuthProvider
     private AuthenticationProvider authenticationProvider;
 
     @Bean

@@ -42,10 +42,15 @@ public class OAuthSecurityConfig extends AuthorizationServerConfigurerAdapter {
      * 认证服务器端点配置
      * 
      * Spring Cloud Security OAuth2通过DefaultTokenServices类来完成token生成、过期等 OAuth2 标准规定的业务逻辑，而DefaultTokenServices又是通过TokenStore接口完成对生成数据的持久化。
+     * 声明授权和token的端点以及token的服务的一些配置信息，比如采用什么存储方式、token的有效期等
      */
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
-        endpoints.authenticationManager(authenticationManager);
+    	/*
+    	 *  默认情况下，AuthorizationServerEndpointsConfigurer支持除了密码外的所有授权类型。
+    	 *  这里设置authenticationManager以支持password授权类型，具体可参考AuthorizationServerEndpointsConfigurer.getDefaultTokenGranters()方法
+    	 */
+        endpoints.authenticationManager(authenticationManager); 
         endpoints.tokenStore(tokenStore());
 
         // 配置TokenServices
@@ -59,6 +64,9 @@ public class OAuthSecurityConfig extends AuthorizationServerConfigurerAdapter {
         endpoints.tokenServices(tokenServices);
     }
 
+    /**
+     * 声明安全约束，哪些允许访问，哪些不允许访问
+     */
     @Override
     public void configure(AuthorizationServerSecurityConfigurer oauthServer) throws Exception {
         //oauthServer.checkTokenAccess("isAuthenticated()");
@@ -76,7 +84,7 @@ public class OAuthSecurityConfig extends AuthorizationServerConfigurerAdapter {
     }
 
     /**
-     * 客户端配置
+     * client的信息的读取：在ClientDetailsServiceConfigurer类里面进行配置，可以有in-memory、jdbc等多种读取方式
      */
     @Override
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
